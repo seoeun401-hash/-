@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학교 내 빈 강의실 및 도서관 자리 현황/예약</title>
+    <style>
+        /* ==========================================================================
+           1. CSS Reset & 디자인 변수 (디자이너 감성 라이트/드롭 섀도우 룩)
+           ========================================================================== */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary: #0d9488;
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #475569;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            
+            /* 상태별 색상 (접근성 및 시각적 직관성 고려) */
+            --avail-bg: #dcfce7;
+            --avail-text: #15803d;
+            --avail-border: #86efac;
+            
+            --occupied-bg: #f1f5f9;
+            --occupied-text: #64748b;
+            --occupied-border: #cbd5e1;
+            
+            --my-bg: #dbeafe;
+            --my-text: #1e40af;
+            --my-border: #93c5fd;
+
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.12);
+            
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --radius-lg: 20px;
+            --radius-full: 9999px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        /* 
+           PC 화면 및 모바일 브라우저를 모두 고려한 앱 컨테이너 
+           PC 접속 시 중앙 모바일-태블릿 프레임(최대 500px) 제공
+        */
+        .app-viewport {
+            width: 100%;
+            max-width: 500px;
+            background-color: var(--bg-card);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: var(--shadow-lg);
+            padding-bottom: 90px; /* 하단 고정 예약 바 영역 확보 */
+        }
+
+        /* ==========================================================================
+           2. 헤더 & 상단 메인 탭 (F-01)
+           ========================================================================== */
+        header {
+            background: linear-gradient(135deg, #1e40af, #2563eb);
+            color: #ffffff;
+            padding: 18px 20px 14px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .app-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 데이터 초기화 버튼 (F-06) */
+        .btn-reset {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            padding: 5px 12px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-reset:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .live-clock {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+        }
+
+        /* F-01: 메인 탭 전환 네비게이션 */
+        .tab-nav {
+            display: flex;
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 73px;
+            z-index: 99;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 0;
+            text-align: center;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-sub);
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* ==========================================================================
+           3. 메인 콘텐츠 및 필터 영역
+           ========================================================================== */
+        main {
+            padding: 16px;
+            flex: 1;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 공통 필터 카드 디자인 */
+        .filter-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-sub);
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            outline: none;
+            background-color: #ffffff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        select:focus, input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* ==========================================================================
+           4. 빈 강의실 목록 (F-02)
+           ========================================================================== */
+        .classroom-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .classroom-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .classroom-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .room-info h3 {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .room-info p {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+
+        .room-status {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+
+        .badge-avail {
+            background-color: var(--avail-bg);
+            color: var(--avail-text);
+            border-color: var(--avail-border);
+        }
+
+        .badge-occupied {
+            background-color: var(--occupied-bg);
+            color: var(--occupied-text);
+            border-color: var(--occupied-border);
+        }
+
+        .time-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            background: #ffffff;
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-md);
+        }
+
+        /* ==========================================================================
+           5. 도서관 잔여 좌석 및 배치도 (F-03, F-04)
+           ========================================================================== */
+        .library-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .summary-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 10px 6px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .summary-box .num {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .summary-box .label {
+            font-size: 0.7rem;
+            color: var(--text-sub);
+            margin-top: 2px;
+            font-weight: 600;
+        }
+
+        .seat-legend {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 14px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: var(--radius-md);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            font-weight: 700;
+        }
+
+        .legend-icon {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+        }
+
+        /* 시각화된 좌석 배치도 Grid (5열) */
+        .seat-map-container {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 14px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .seat-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .seat-btn {
+            aspect-ratio: 1;
+            border-radius: var(--radius-md);
+            border: 1.5px solid transparent;
+            font-size: 0.85rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .seat-btn.available {
+            background-color: var(--avail-bg);
+            color: var(--avail-text);
+            border-color: var(--avail-border);
+        }
+
+        .seat-btn.available:hover {
+            transform: scale(1.05);
+            background-color: #bbf7d0;
+        }
+
+        .seat-btn.occupied {
+            background-color: var(--occupied-bg);
+            color: var(--occupied-text);
+            border-color: var(--occupied-border);
+            cursor: not-allowed;
+            opacity: 0.75;
+        }
+
+        .seat-btn.my-seat {
+            background-color: var(--my-bg);
+            color: var(--my-text);
+            border-color: var(--my-border);
+            box-shadow: 0 0 0 2px var(--primary);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
+        /* ==========================================================================
+           6. 하단 내 예약 정보 고정 바 (F-05)
+           ========================================================================== */
+        .sticky-reservation-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 12px 20px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
+            z-index: 90;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .reservation-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .reservation-title {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            font-weight: 700;
+        }
+
+        .reservation-details {
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .btn-return {
+            background-color: var(--danger);
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-full);
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-return:hover {
+            background-color: var(--danger-hover);
+        }
+
+        .no-reservation-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ==========================================================================
+           7. 모달 팝업 및 토스트 메시지 (F-04)
+           ========================================================================== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(2px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            width: 90%;
+            max-width: 360px;
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(20px);
+            transition: transform 0.2s ease;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        .modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 11px 0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background-color: #f1f5f9;
+            color: var(--text-sub);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+
+        /* 토스트 메시지 피드백 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-50px);
+            background: rgba(15, 23, 42, 0.95);
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: var(--radius-full);
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 2000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            pointer-events: none;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 모바일/PC 모의 디바이스 프레임 -->
+    <div class="app-viewport">
+        <!-- 토스트 알림 영역 -->
+        <div id="toast" class="toast">알림 메시지</div>
+
+        <!-- 헤더 영역 -->
+        <header>
+            <div class="header-top">
+                <div class="app-title">
+                    <span>🏫 Campus Seat Tracker</span>
+                </div>
+                <!-- F-06: 초기화 버튼 -->
+                <button class="btn-reset" onclick="handleResetData()">데이터 초기화</button>
+            </div>
+            <div class="live-clock" id="liveClock">2026. 10. 27. 00:00:00</div>
+        </header>
+
+        <!-- F-01: 메인 탭 네비게이션 -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('classroom')">빈 강의실</button>
+            <button class="tab-btn" onclick="switchTab('library')">도서관 좌석</button>
+        </nav>
+
+        <main>
+            <!-- ==========================================================================
+               탭 1: 빈 강의실 현황 조회 (F-02)
+               ========================================================================== -->
+            <section id="tab-classroom" class="tab-content active">
+                <div class="filter-card">
+                    <div class="filter-grid">
+                        <div class="form-group">
+                            <label for="buildingFilter">건물 선택</label>
+                            <select id="buildingFilter" onchange="renderClassrooms()">
+                                <option value="ALL">전체 건물</option>
+                                <option value="IT관">IT관</option>
+                                <option value="미래관">미래관</option>
+                                <option value="종합강의동">종합강의동</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="floorFilter">층 선택</label>
+                            <select id="floorFilter" onchange="renderClassrooms()">
+                                <option value="ALL">전체 층</option>
+                                <option value="1">1층</option>
+                                <option value="2">2층</option>
+                                <option value="3">3층</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="searchInput">강의실 검색</label>
+                        <input type="text" id="searchInput" placeholder="예: 301호, IT관" oninput="renderClassrooms()">
+                    </div>
+                </div>
+
+                <!-- 강의실 동적 출력 카드리스트 -->
+                <div id="classroomList" class="classroom-list">
+                    <!-- JS에서 동적으로 생성됩니다 -->
+                </div>
+            </section>
+
+            <!-- ==========================================================================
+               탭 2: 도서관 잔여 좌석 조회 및 예약 (F-03, F-04)
+               ========================================================================== -->
+            <section id="tab-library" class="tab-content">
+                <div class="filter-card">
+                    <div class="form-group">
+                        <label for="roomSelect">열람실 선택</label>
+                        <select id="roomSelect" onchange="renderLibrarySeats()">
+                            <option value="room1">제1열람실 (정독실)</option>
+                            <option value="room2">제2열람실 (노트북석)</option>
+                            <option value="room3">제3열람실 (스터디존)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- F-03: 현황 요약 정보 -->
+                <div class="library-summary">
+                    <div class="summary-box">
+                        <div class="num" id="totalSeatCount">0</div>
+                        <div class="label">전체 좌석</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="num" id="availSeatCount" style="color: var(--secondary);">0</div>
+                        <div class="label">잔여 좌석</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="num" id="occupancyRate" style="color: var(--text-main);">0%</div>
+                        <div class="label">이용률</div>
+                    </div>
+                </div>
+
+                <!-- 좌석 범례 -->
+                <div class="seat-legend">
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: var(--avail-bg); border-color: var(--avail-border);"></div>
+                        <span>이용 가능</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: var(--occupied-bg); border-color: var(--occupied-border);"></div>
+                        <span>사용 중</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: var(--my-bg); border-color: var(--my-border);"></div>
+                        <span>내 좌석</span>
+                    </div>
+                </div>
+
+                <!-- F-03: 시각화된 좌석 배치도 Grid -->
+                <div class="seat-map-container">
+                    <div id="seatGrid" class="seat-grid">
+                        <!-- JS에서 버튼들이 동적으로 생성됩니다 -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ==========================================================================
+           하단 고정 바: 내 예약 현황 & 반납 (F-05)
+           ========================================================================== -->
+        <div id="stickyBar" class="sticky-reservation-bar">
+            <!-- JS에서 예약 여부에 따라 동적 변경 -->
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+       좌석 예약 입력 모달 팝업 (F-04)
+       ========================================================================== -->
+    <div id="reservationModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">도서관 좌석 예약</div>
+            <div class="modal-body">
+                <p id="modalSeatLabel" style="font-size: 0.95rem; font-weight: 800; color: var(--primary);">
+                    제1열람실 01번 좌석
+                </p>
+                <div class="form-group">
+                    <label for="studentIdInput">학번 (필수)</label>
+                    <input type="text" id="studentIdInput" placeholder="예: 202412345" maxlength="12">
+                </div>
+                <div class="form-group">
+                    <label for="studentNameInput">이름 (필수)</label>
+                    <input type="text" id="studentNameInput" placeholder="예: 홍길동" maxlength="10">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+                <button class="btn btn-primary" onclick="confirmReservation()">예약하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+       JAVASCRIPT LOGIC (웹앱 구동 로직)
+       ========================================================================== -->
+    <script>
+        /* --------------------------------------------------------------------------
+         * 1. 초기 가상 데이터 (Seed Data)
+         * -------------------------------------------------------------------------- */
+        const DEFAULT_CLASSROOMS = [
+            { id: "c1", building: "IT관", floor: "3", roomNo: "301호", schedule: [{ start: "09:00", end: "12:00" }, { start: "13:00", end: "15:00" }] },
+            { id: "c2", building: "IT관", floor: "3", roomNo: "302호", schedule: [{ start: "10:00", end: "13:00" }, { start: "16:00", end: "18:00" }] },
+            { id: "c3", building: "IT관", floor: "2", roomNo: "201호", schedule: [{ start: "11:00", end: "14:00" }] },
+            { id: "c4", building: "미래관", floor: "1", roomNo: "101호", schedule: [{ start: "09:00", end: "11:00" }, { start: "14:00", end: "17:00" }] },
+            { id: "c5", building: "미래관", floor: "2", roomNo: "205호", schedule: [] }, // 종일 수업 없음
+            { id: "c6", building: "종합강의동", floor: "1", roomNo: "105호", schedule: [{ start: "13:00", end: "18:00" }] },
+            { id: "c7", building: "종합강의동", floor: "2", roomNo: "210호", schedule: [{ start: "09:00", end: "18:00" }] }
+        ];
+
+        function generateDefaultSeats() {
+            const rooms = ["room1", "room2", "room3"];
+            const seats = {};
+            rooms.forEach(room => {
+                seats[room] = [];
+                for (let i = 1; i <= 15; i++) {
+                    const seatNum = i < 10 ? `0${i}` : `${i}`;
+                    // 초기 사용 중 예시 배치 (4의 배수 좌석)
+                    const isOccupied = (i % 4 === 0);
+                    seats[room].push({
+                        id: `${room}-${seatNum}`,
+                        number: seatNum,
+                        status: isOccupied ? "occupied" : "available",
+                        reservedBy: isOccupied ? { studentId: "20230000", name: "기존사용자" } : null,
+                        reservedAt: isOccupied ? "09:00" : null
+                    });
+                }
+            });
+            return seats;
+        }
+
+        /* --------------------------------------------------------------------------
+         * 2. 전역 상태 및 LocalStorage 관리
+         * -------------------------------------------------------------------------- */
+        let state = {
+            classrooms: [],
+            librarySeats: {},
+            myReservation: null
+        };
+
+        let selectedSeatForReservation = null;
+
+        function initData() {
+            const storedClassrooms = localStorage.getItem("app_classrooms");
+            const storedSeats = localStorage.getItem("app_library_seats");
+            const storedMyRes = localStorage.getItem("app_my_reservation");
+
+            if (!storedClassrooms || !storedSeats) {
+                state.classrooms = DEFAULT_CLASSROOMS;
+                state.librarySeats = generateDefaultSeats();
+                state.myReservation = null;
+                saveToLocalStorage();
+            } else {
+                state.classrooms = JSON.parse(storedClassrooms);
+                state.librarySeats = JSON.parse(storedSeats);
+                state.myReservation = storedMyRes ? JSON.parse(storedMyRes) : null;
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem("app_classrooms", JSON.stringify(state.classrooms));
+            localStorage.setItem("app_library_seats", JSON.stringify(state.librarySeats));
+            if (state.myReservation) {
+                localStorage.setItem("app_my_reservation", JSON.stringify(state.myReservation));
+            } else {
+                localStorage.removeItem("app_my_reservation");
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 3. 유틸리티 함수 (시계, 토스트 알림, 시간 계산)
+         * -------------------------------------------------------------------------- */
+        function updateClock() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const date = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+
+            document.getElementById("liveClock").textContent = 
+                `${year}. ${month}. ${date}. ${hours}:${minutes}:${seconds}`;
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            toast.textContent = message;
+            toast.classList.add("show");
+            setTimeout(() => {
+                toast.classList.remove("show");
+            }, 2500);
+        }
+
+        function timeToMinutes(timeStr) {
+            const [h, m] = timeStr.split(":").map(Number);
+            return h * 60 + m;
+        }
+
+        /* --------------------------------------------------------------------------
+         * 4. F-01: 메인 탭 전환 로직
+         * -------------------------------------------------------------------------- */
+        function switchTab(tabName) {
+            const tabBtns = document.querySelectorAll(".tab-btn");
+            const tabContents = document.querySelectorAll(".tab-content");
+
+            tabBtns.forEach(btn => btn.classList.remove("active"));
+            tabContents.forEach(content => content.classList.remove("active"));
+
+            if (tabName === "classroom") {
+                tabBtns[0].classList.add("active");
+                document.getElementById("tab-classroom").classList.add("active");
+                renderClassrooms();
+            } else if (tabName === "library") {
+                tabBtns[1].classList.add("active");
+                document.getElementById("tab-library").classList.add("active");
+                renderLibrarySeats();
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 5. F-02: 빈 강의실 현황 조회 및 시간 비교
+         * -------------------------------------------------------------------------- */
+        function renderClassrooms() {
+            const building = document.getElementById("buildingFilter").value;
+            const floor = document.getElementById("floorFilter").value;
+            const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+
+            const container = document.getElementById("classroomList");
+            container.innerHTML = "";
+
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+            const filtered = state.classrooms.filter(room => {
+                const matchBuilding = (building === "ALL" || room.building === building);
+                const matchFloor = (floor === "ALL" || room.floor === floor);
+                const matchKeyword = (
+                    room.roomNo.toLowerCase().includes(keyword) || 
+                    room.building.toLowerCase().includes(keyword)
+                );
+                return matchBuilding && matchFloor && matchKeyword;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="empty-state">조건에 맞는 강의실이 존재하지 않습니다.</div>`;
+                return;
+            }
+
+            filtered.forEach(room => {
+                let isOccupied = false;
+                let currentLessonEnd = null;
+                let nextLessonStart = null;
+
+                const sortedSchedule = [...room.schedule].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+                for (let slot of sortedSchedule) {
+                    const startMin = timeToMinutes(slot.start);
+                    const endMin = timeToMinutes(slot.end);
+
+                    if (currentMinutes >= startMin && currentMinutes < endMin) {
+                        isOccupied = true;
+                        currentLessonEnd = slot.end;
+                        break;
+                    } else if (currentMinutes < startMin) {
+                        if (!nextLessonStart) {
+                            nextLessonStart = slot.start;
+                        }
+                    }
+                }
+
+                const card = document.createElement("div");
+                card.className = "classroom-card";
+
+                let statusBadge = "";
+                let timeHintText = "";
+
+                if (isOccupied) {
+                    statusBadge = `<span class="badge badge-occupied">수업 중</span>`;
+                    timeHintText = `수업 종료 시각: ${currentLessonEnd}`;
+                } else {
+                    statusBadge = `<span class="badge badge-avail">이용 가능</span>`;
+                    if (nextLessonStart) {
+                        const diffMin = timeToMinutes(nextLessonStart) - currentMinutes;
+                        const hours = Math.floor(diffMin / 60);
+                        const mins = diffMin % 60;
+                        let remainStr = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+                        timeHintText = `다음 수업까지 ${remainStr} 남음 (${nextLessonStart}~);`;
+                    } else {
+                        timeHintText = `오늘 예정된 수업 없음`;
+                    }
+                }
+
+                card.innerHTML = `
+                    <div class="room-info">
+                        <h3>${room.building} ${room.roomNo}</h3>
+                        <p>${room.floor}층 위치</p>
+                    </div>
+                    <div class="room-status">
+                        ${statusBadge}
+                        <span class="time-hint">${timeHintText}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* --------------------------------------------------------------------------
+         * 6. F-03 & F-04: 도서관 잔여 좌석 조회 및 예약
+         * -------------------------------------------------------------------------- */
+        function renderLibrarySeats() {
+            const roomId = document.getElementById("roomSelect").value;
+            const seats = state.librarySeats[roomId] || [];
+            const gridContainer = document.getElementById("seatGrid");
+            gridContainer.innerHTML = "";
+
+            let totalCount = seats.length;
+            let occupiedCount = 0;
+
+            seats.forEach(seat => {
+                const isMySeat = (state.myReservation && state.myReservation.seatId === seat.id);
+                const isOccupied = (seat.status === "occupied") && !isMySeat;
+
+                if (isOccupied || isMySeat) {
+                    occupiedCount++;
+                }
+
+                const seatBtn = document.createElement("button");
+                seatBtn.className = "seat-btn";
+
+                if (isMySeat) {
+                    seatBtn.classList.add("my-seat");
+                    seatBtn.innerHTML = `<span>${seat.number}</span><span style="font-size:0.65rem;">내 좌석</span>`;
+                    seatBtn.onclick = () => handleMySeatClick();
+                } else if (isOccupied) {
+                    seatBtn.classList.add("occupied");
+                    seatBtn.innerHTML = `<span>${seat.number}</span><span style="font-size:0.65rem;">사용 중</span>`;
+                    seatBtn.onclick = () => showToast("이미 타인이 예약하여 사용 중인 좌석입니다.");
+                } else {
+                    seatBtn.classList.add("available");
+                    seatBtn.innerHTML = `<span>${seat.number}</span><span style="font-size:0.65rem;">예약</span>`;
+                    seatBtn.onclick = () => openReservationModal(roomId, seat);
+                }
+
+                gridContainer.appendChild(seatBtn);
+            });
+
+            // 현황 요약 계산
+            const availCount = totalCount - occupiedCount;
+            const rate = totalCount > 0 ? Math.round((occupiedCount / totalCount) * 100) : 0;
+
+            document.getElementById("totalSeatCount").textContent = totalCount;
+            document.getElementById("availSeatCount").textContent = availCount;
+            document.getElementById("occupancyRate").textContent = `${rate}%`;
+
+            renderStickyBar();
+        }
+
+        function openReservationModal(roomId, seat) {
+            // F-04 예외처리: 중복 예약 방지
+            if (state.myReservation) {
+                showToast("이미 예약한 좌석이 있습니다. 기존 좌석 반납 후 이용해주세요.");
+                return;
+            }
+
+            const roomNames = {
+                room1: "제1열람실 (정독실)",
+                room2: "제2열람실 (노트북석)",
+                room3: "제3열람실 (스터디존)"
+            };
+
+            selectedSeatForReservation = { roomId, seat, roomName: roomNames[roomId] };
+
+            document.getElementById("modalSeatLabel").textContent = 
+                `${roomNames[roomId]} ${seat.number}번 좌석`;
+            document.getElementById("studentIdInput").value = "";
+            document.getElementById("studentNameInput").value = "";
+
+            document.getElementById("reservationModal").classList.add("active");
+        }
+
+        function closeModal() {
+            document.getElementById("reservationModal").classList.remove("active");
+            selectedSeatForReservation = null;
+        }
+
+        // F-04: 예약 확정 및 검증
+        function confirmReservation() {
+            if (!selectedSeatForReservation) return;
+
+            const studentId = document.getElementById("studentIdInput").value.trim();
+            const name = document.getElementById("studentNameInput").value.trim();
+
+            // 입력값 다중 검증
+            if (!studentId || !name) {
+                showToast("학번과 이름을 모두 입력해주세요.");
+                return;
+            }
+
+            if (studentId.length < 5) {
+                showToast("올바른 학번 형태를 입력해주세요.");
+                return;
+            }
+
+            const { roomId, seat, roomName } = selectedSeatForReservation;
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            // 상태 업데이트
+            const seatObj = state.librarySeats[roomId].find(s => s.id === seat.id);
+            if (seatObj) {
+                seatObj.status = "occupied";
+                seatObj.reservedBy = { studentId, name };
+                seatObj.reservedAt = timeStr;
+            }
+
+            state.myReservation = {
+                roomId: roomId,
+                seatId: seat.id,
+                seatNumber: seat.number,
+                roomName: roomName,
+                studentId: studentId,
+                name: name,
+                reservedAt: timeStr
+            };
+
+            saveToLocalStorage();
+            closeModal();
+            renderLibrarySeats();
+            showToast(`${roomName} ${seat.number}번 좌석 예약이 완료되었습니다!`);
+        }
+
+        /* --------------------------------------------------------------------------
+         * 7. F-05: 좌석 예약 취소 / 반납
+         * -------------------------------------------------------------------------- */
+        function handleMySeatClick() {
+            if (confirm("현재 이용 중인 좌석입니다. 반납하시겠습니까?")) {
+                handleReturnSeat();
+            }
+        }
+
+        function handleReturnSeat() {
+            if (!state.myReservation) return;
+
+            const { roomId, seatId, seatNumber, roomName } = state.myReservation;
+
+            if (state.librarySeats[roomId]) {
+                const seatObj = state.librarySeats[roomId].find(s => s.id === seatId);
+                if (seatObj) {
+                    seatObj.status = "available";
+                    seatObj.reservedBy = null;
+                    seatObj.reservedAt = null;
+                }
+            }
+
+            state.myReservation = null;
+            saveToLocalStorage();
+            renderLibrarySeats();
+            showToast(`${roomName} ${seatNumber}번 좌석이 정상 반납되었습니다.`);
+        }
+
+        function renderStickyBar() {
+            const bar = document.getElementById("stickyBar");
+
+            if (state.myReservation) {
+                const res = state.myReservation;
+                bar.innerHTML = `
+                    <div class="reservation-info">
+                        <span class="reservation-title">내가 이용 중인 좌석</span>
+                        <span class="reservation-details">${res.roomName} ${res.seatNumber}번 (${res.reservedAt}~)</span>
+                    </div>
+                    <button class="btn-return" onclick="handleReturnSeat()">반납하기</button>
+                `;
+            } else {
+                bar.innerHTML = `
+                    <div class="reservation-info">
+                        <span class="reservation-title">내 예약 현황</span>
+                        <span class="no-reservation-text">현재 예약 중인 좌석이 없습니다.</span>
+                    </div>
+                `;
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 8. F-06: 데이터 초기화 (테스트용)
+         * -------------------------------------------------------------------------- */
+        function handleResetData() {
+            if (confirm("모든 데이터를 초기 가상 데이터 상태로 초기화하시겠습니까? (내 예약 내역 포함)")) {
+                localStorage.removeItem("app_classrooms");
+                localStorage.removeItem("app_library_seats");
+                localStorage.removeItem("app_my_reservation");
+
+                initData();
+                renderClassrooms();
+                renderLibrarySeats();
+                showToast("데이터가 초기 상태로 재설정되었습니다.");
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 9. 애플리케이션 시작점 (Onload Init)
+         * -------------------------------------------------------------------------- */
+        window.onload = function() {
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            initData();
+            renderClassrooms();
+            renderLibrarySeats();
+        };
+    </script>
+</body>
+</html>
